@@ -1,0 +1,77 @@
+{
+  "name": "task-manager",
+  "version": "0.1.0",
+  "description": "桌面任务管理 App — 支持定时/单次任务，流程串接，插件化触发器和动作",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:main\" \"npm run dev:renderer\"",
+    "dev:main": "tsc -p tsconfig.main.json --watch",
+    "dev:renderer": "vite",
+    "build:main": "tsc -p tsconfig.main.json",
+    "build:renderer": "vite build",
+    "build": "npm run build:main && npm run build:renderer",
+    "pack": "npm run build && electron-builder --win --x64",
+    "pack:dir": "npm run build && electron-builder --win --x64 --dir",
+    "start": "electron ."
+  },
+  "build": {
+    "appId": "com.taskmanager.app",
+    "productName": "Task Manager",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": null,
+      "artifactName": "TaskManager-${version}-setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Task Manager",
+      "uninstallDisplayName": "Task Manager ${version}"
+    },
+    "extraMetadata": {
+      "main": "dist/main/index.js"
+    },
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/sql.js/dist/sql-wasm.wasm"
+    ]
+  },
+  "dependencies": {
+    "electron-store": "^8.2.0",
+    "node-cron": "^3.0.3",
+    "sql.js": "^1.14.1",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/node-cron": "^3.0.11",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/uuid": "^10.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0",
+    "zustand": "^5.0.0"
+  }
+}
