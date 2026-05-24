@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import type { Task, TaskFilter } from '../../shared/types';
 
-// 声明 preload 暴露的 API
 declare global {
   interface Window {
     taskManager: any;
@@ -36,6 +35,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     } catch (err) {
       console.error('获取任务列表失败', err);
       set({ loading: false });
+      throw err;
     }
   },
 
@@ -46,32 +46,67 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 
   createTask: async (data) => {
     const task = await window.taskManager.tasks.create(data);
-    await get().fetchTasks();
+    set(state => ({ tasks: [task, ...state.tasks] }));
     return task;
   },
 
   updateTask: async (id, data) => {
-    await window.taskManager.tasks.update(id, data);
-    await get().fetchTasks();
+    const updated = await window.taskManager.tasks.update(id, data);
+    set(state => ({
+      tasks: state.tasks.map(t => t.id === id ? (updated || { ...t, ...data }) : t),
+    }));
   },
 
   deleteTask: async (id) => {
-    await window.taskManager.tasks.delete(id);
-    await get().fetchTasks();
+    const prev = get().tasks;
+    set(state => ({ tasks: state.tasks.filter(t => t.id !== id) }));
+    try {
+      await window.taskManager.tasks.delete(id);
+    } catch (err) {
+      set({ tasks: prev });
+      throw err;
+    }
   },
 
   startTask: async (id) => {
-    await window.taskManager.control.start(id);
-    await get().fetchTasks();
+    set(state => ({
+      tasks: state.tasks.map(t => t.id === id ? { ...t, status: 'running' } : t),
+    }));
+    try {
+      await window.taskManager.control.start(id);
+    } catch (err) {
+      set(state => ({
+        tasks: state.tasks.map(t => t.id === id ? { ...t, status: 'idle' } : t),
+      }));
+      throw err;
+    }
   },
 
   pauseTask: async (id) => {
-    await window.taskManager.control.pause(id);
-    await get().fetchTasks();
+    set(state => ({
+      tasks: state.tasks.map(t => t.id === id ? { ...t, status: 'paused' } : t),
+    }));
+    try {
+      await window.taskManager.control.pause(id);
+    } catch (err) {
+      set(state => ({
+        tasks: state.tasks.map(t => t.id === id ? { ...t, status: 'running' } : t),
+      }));
+      throw err;
+    }
   },
 
   resumeTask: async (id) => {
-    await window.taskManager.control.resume(id);
-    await get().fetchTasks();
+    set(state => ({
+      tasks: state.tasks.map(t => t.id === id ? { ...t, status: 'idle' } : t),
+    }));
+    try {
+      await window.taskManager.control.resume(id);
+    } catch (err) {
+      set(state => ({
+        tasks: state.tasks.map(t => t.id === id ? { ...t, status: 'paused' } : t),
+      }));
+      throw err;
+    }
   },
 }));

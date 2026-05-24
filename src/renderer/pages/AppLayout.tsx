@@ -3,12 +3,14 @@ import { useTheme } from '../stores/themeStore';
 import { TaskListPage } from './TaskListPage';
 import { ExecutionHistoryPage } from './ExecutionHistoryPage';
 import { SettingsPage } from './SettingsPage';
+import { PluginManagePage } from './PluginManagePage';
 
-type Page = 'tasks' | 'history' | 'settings';
+type Page = 'tasks' | 'history' | 'plugins' | 'settings';
 
 const NAV_ITEMS: { key: Page; label: string; icon: string }[] = [
   { key: 'tasks', label: '任务列表', icon: '📋' },
   { key: 'history', label: '执行历史', icon: '📊' },
+  { key: 'plugins', label: '插件管理', icon: '🧩' },
   { key: 'settings', label: '设置', icon: '⚙️' },
 ];
 
@@ -131,6 +133,7 @@ export const AppLayout: React.FC = () => {
     switch (page) {
       case 'tasks': return <TaskListPage {...commonProps} />;
       case 'history': return <ExecutionHistoryPage {...commonProps} />;
+      case 'plugins': return <PluginManagePage {...commonProps} />;
       case 'settings': return <SettingsPage {...commonProps} />;
     }
   };

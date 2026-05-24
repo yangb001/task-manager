@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTheme } from '../stores/themeStore';
 
 interface SettingsPageProps {
-  onNavigate: (page: 'tasks' | 'history' | 'settings') => void;
+  onNavigate: (page: 'tasks' | 'history' | 'plugins' | 'settings') => void;
 }
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigate }) => {

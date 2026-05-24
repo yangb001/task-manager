@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useTheme } from '../stores/themeStore';
 import { useTaskStore } from '../stores/taskStore';
 import { TaskFormModal } from './TaskFormModal';
 import type { Task } from '../../shared/types';
 
 interface TaskListPageProps {
-  onNavigate: (page: 'tasks' | 'history' | 'settings') => void;
+  onNavigate: (page: 'tasks' | 'history' | 'plugins' | 'settings') => void;
 }
 
 const STATUS_TABS = [
@@ -24,6 +24,16 @@ const STATUS_COLORS: Record<string, string> = {
   failed: '#cf222e',
 };
 
+const btnStyle: React.CSSProperties = {
+  padding: '4px 10px', borderRadius: 4, border: '1px solid #d0d0d0',
+  background: 'transparent', color: '#666', fontSize: 12, cursor: 'pointer',
+  fontWeight: 500, transition: 'all 0.1s',
+};
+
+const Btn: React.FC<{ label: string; onClick: () => void }> = ({ label, onClick }) => (
+  <button style={btnStyle} onClick={onClick}>{label}</button>
+);
+
 export const TaskListPage: React.FC<TaskListPageProps> = ({ onNavigate }) => {
   const { theme } = useTheme();
   const { tasks, loading, fetchTasks, setFilter, startTask, pauseTask, resumeTask, deleteTask, createTask, updateTask } = useTaskStore();
@@ -38,22 +48,18 @@ export const TaskListPage: React.FC<TaskListPageProps> = ({ onNavigate }) => {
     setFilter(key ? { status: key as any } : {});
   };
 
-  const filteredTasks = activeTab ? tasks.filter(t => t.status === activeTab) : tasks;
-
-  const btn = (label: string, color: string, onClick: () => void) => (
-    <button
-      style={{
-        padding: '4px 10px', borderRadius: theme.borderRadius, border: `1px solid ${theme.borderColor}`,
-        background: 'transparent', color: theme.textSecondary, fontSize: 12, cursor: 'pointer',
-        fontWeight: 500, transition: 'all 0.1s',
-      }}
-      onClick={onClick}
-      onMouseEnter={e => { e.currentTarget.style.background = theme.hoverBg; e.currentTarget.style.color = theme.textPrimary; }}
-      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = theme.textSecondary; }}
-    >
-      {label}
-    </button>
+  const filteredTasks = useMemo(
+    () => activeTab ? tasks.filter(t => t.status === activeTab) : tasks,
+    [tasks, activeTab],
   );
+
+  const tabCounts = useMemo(() => {
+    const counts: Record<string, number> = { '': tasks.length };
+    for (const t of tasks) {
+      counts[t.status] = (counts[t.status] || 0) + 1;
+    }
+    return counts;
+  }, [tasks]);
 
   return (
     <>
@@ -83,7 +89,7 @@ export const TaskListPage: React.FC<TaskListPageProps> = ({ onNavigate }) => {
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 2, marginBottom: 16, borderBottom: `1px solid ${theme.borderColor}`, paddingBottom: 0 }}>
           {STATUS_TABS.map(tab => {
-            const count = tab.key ? tasks.filter(t => t.status === tab.key).length : tasks.length;
+            const count = tabCounts[tab.key] || 0;
             const active = activeTab === tab.key;
             return (
               <button
@@ -189,11 +195,11 @@ export const TaskListPage: React.FC<TaskListPageProps> = ({ onNavigate }) => {
                     : '从未执行'}
                 </div>
                 <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                  {task.status === 'idle' && btn('▶ 执行', theme.primaryColor, () => startTask(task.id))}
-                  {task.status === 'running' && btn('⏸ 暂停', '#dba642', () => pauseTask(task.id))}
-                  {task.status === 'paused' && btn('▶ 恢复', theme.primaryColor, () => resumeTask(task.id))}
-                  {btn('✏', theme.textSecondary, () => { setEditingTask(task); setShowForm(true); })}
-                  {btn('🗑', '#cf222e', () => { if (confirm(`删除「${task.name}」？`)) deleteTask(task.id); })}
+                  {task.status === 'idle' && <Btn label="▶ 执行" onClick={() => startTask(task.id)} />}
+                  {task.status === 'running' && <Btn label="⏸ 暂停" onClick={() => pauseTask(task.id)} />}
+                  {task.status === 'paused' && <Btn label="▶ 恢复" onClick={() => resumeTask(task.id)} />}
+                  <Btn label="✏" onClick={() => { setEditingTask(task); setShowForm(true); }} />
+                  <Btn label="🗑" onClick={() => { if (confirm(`删除「${task.name}」？`)) deleteTask(task.id); }} />
                 </div>
               </div>
             ))}

@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { getDatabase, saveDatabase } from '../connection';
+import { getDatabase, markDirty } from '../connection';
 import type { Task, CreateTaskInput, UpdateTaskInput, TaskFilter } from '../../../shared/types';
 
 export class TaskRepository {
@@ -45,7 +45,7 @@ export class TaskRepository {
        JSON.stringify(input.schedule), input.trigger_logic || 'or',
        JSON.stringify(input.tags || []), input.group_name || '', now, now]
     );
-    saveDatabase();
+    markDirty();
     return this.get(id)!;
   }
 
@@ -72,7 +72,7 @@ export class TaskRepository {
     params.push(id);
 
     db.run(`UPDATE tasks SET ${fields.join(', ')} WHERE id = ?`, params);
-    saveDatabase();
+    markDirty();
     return this.get(id);
   }
 
@@ -80,13 +80,13 @@ export class TaskRepository {
     const db = getDatabase();
     db.run('UPDATE tasks SET total_runs = ?, last_run_at = ?, last_run_status = ? WHERE id = ?',
       [stats.total_runs, stats.last_run_at, stats.last_run_status, id]);
-    saveDatabase();
+    markDirty();
   }
 
   delete(id: string): void {
     const db = getDatabase();
     db.run('DELETE FROM tasks WHERE id = ?', [id]);
-    saveDatabase();
+    markDirty();
   }
 
   private queryAll(sql: string, params: any[] = []): Task[] {

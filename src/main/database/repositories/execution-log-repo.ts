@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { getDatabase, saveDatabase } from '../connection';
+import { getDatabase, markDirty } from '../connection';
 import type { ExecutionLog, ActionLog } from '../../../shared/types';
 
 export class ExecutionLogRepository {
@@ -11,8 +11,8 @@ export class ExecutionLogRepository {
     if (filter?.status) { sql += ' AND status = ?'; params.push(filter.status); }
 
     sql += ' ORDER BY started_at DESC';
-    if (filter?.limit) sql += ` LIMIT ${filter.limit}`;
-    if (filter?.offset) sql += ` OFFSET ${filter.offset}`;
+    if (filter?.limit) { sql += ' LIMIT ?'; params.push(filter.limit); }
+    if (filter?.offset) { sql += ' OFFSET ?'; params.push(filter.offset); }
 
     return this.queryAll(sql, params);
   }
@@ -34,7 +34,7 @@ export class ExecutionLogRepository {
        data.trigger_data ? JSON.stringify(data.trigger_data) : null,
        data.status, data.started_at]
     );
-    saveDatabase();
+    markDirty();
     return this.get(id)!;
   }
 
@@ -59,7 +59,7 @@ export class ExecutionLogRepository {
     if (fields.length === 0) return;
     params.push(id);
     db.run(`UPDATE execution_logs SET ${fields.join(', ')} WHERE id = ?`, params);
-    saveDatabase();
+    markDirty();
   }
 
   private queryAll(sql: string, params: any[] = []): ExecutionLog[] {

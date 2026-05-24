@@ -5,6 +5,9 @@ import { app } from 'electron';
 
 let db: any = null;
 let dbPath: string = '';
+let dirty = false;
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+const FLUSH_INTERVAL = 5000; // 5秒
 
 export function getDbPath(): string {
   const userDataPath = app.getPath('userData');
@@ -18,18 +21,34 @@ export function getDatabase(): any {
   return db;
 }
 
+export function markDirty(): void {
+  dirty = true;
+  if (!flushTimer) {
+    flushTimer = setTimeout(flushToDisk, FLUSH_INTERVAL);
+  }
+}
+
+export function flushToDisk(): void {
+  if (flushTimer) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
+  if (!dirty || !db || !dbPath) return;
+  const data = db.export();
+  const buffer = Buffer.from(data);
+  fs.writeFileSync(dbPath, buffer);
+  dirty = false;
+}
+
 export async function initializeDatabase(): Promise<void> {
   dbPath = getDbPath();
 
-  // sql.js 的 wasm 文件位置
   const SQL: any = await initSqlJs({
     locateFile: (file: string) => {
-      // 在 asar 包中，wasm 文件在 node_modules/sql.js/dist/
       return require('path').join(__dirname, '..', '..', '..', 'node_modules', 'sql.js', 'dist', file);
     }
   });
 
-  // 尝试加载已有数据库
   if (fs.existsSync(dbPath)) {
     const buffer = fs.readFileSync(dbPath);
     db = new SQL.Database(buffer);
@@ -37,7 +56,6 @@ export async function initializeDatabase(): Promise<void> {
     db = new SQL.Database();
   }
 
-  // 建表
   db.run(`
     CREATE TABLE IF NOT EXISTS tasks (
       id            TEXT PRIMARY KEY,
@@ -128,34 +146,30 @@ export async function initializeDatabase(): Promise<void> {
     );
   `);
 
-  // 创建索引
   const indexes = [
     'CREATE INDEX IF NOT EXISTS idx_system_logs_timestamp ON system_logs(timestamp DESC)',
     'CREATE INDEX IF NOT EXISTS idx_system_logs_level ON system_logs(level)',
     'CREATE INDEX IF NOT EXISTS idx_system_logs_module ON system_logs(module)',
     'CREATE INDEX IF NOT EXISTS idx_execution_logs_task ON execution_logs(task_id)',
+    'CREATE INDEX IF NOT EXISTS idx_execution_logs_started_at ON execution_logs(started_at DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_execution_logs_status ON execution_logs(status)',
     'CREATE INDEX IF NOT EXISTS idx_action_logs_execution ON action_logs(execution_id)',
     'CREATE INDEX IF NOT EXISTS idx_triggers_task ON triggers(task_id)',
     'CREATE INDEX IF NOT EXISTS idx_actions_task ON actions(task_id)',
+    'CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)',
+    'CREATE INDEX IF NOT EXISTS idx_tasks_group_name ON tasks(group_name)',
   ];
   for (const idx of indexes) {
     db.run(idx);
   }
 
-  // 保存到文件
-  saveDatabase();
-}
-
-export function saveDatabase(): void {
-  if (!db || !dbPath) return;
-  const data = db.export();
-  const buffer = Buffer.from(data);
-  fs.writeFileSync(dbPath, buffer);
+  // 初始 schema 创建后立即写盘
+  flushToDisk();
 }
 
 export function closeDatabase(): void {
   if (db) {
-    saveDatabase();
+    flushToDisk();
     db.close();
     db = null;
   }

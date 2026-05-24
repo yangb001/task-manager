@@ -1,4 +1,4 @@
-import { getDatabase, saveDatabase } from '../connection';
+import { getDatabase, markDirty } from '../connection';
 
 export class VaultRepository {
   get(key: string): any {
@@ -21,13 +21,13 @@ export class VaultRepository {
       'INSERT OR REPLACE INTO vault (key, value, updated_at) VALUES (?, ?, ?)',
       [key, str, new Date().toISOString()]
     );
-    saveDatabase();
+    markDirty();
   }
 
   delete(key: string): void {
     const db = getDatabase();
     db.run('DELETE FROM vault WHERE key = ?', [key]);
-    saveDatabase();
+    markDirty();
   }
 }
 

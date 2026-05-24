@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import type { Task, OneShotSchedule, CronSchedule } from '../../shared/types';
+import type { Task, OneShotSchedule, CronSchedule, PluginInfo } from '../../shared/types';
+import { TriggerConfig } from '../components/TriggerConfig';
+import { ActionConfig } from '../components/ActionConfig';
 
 export interface TaskFormData {
   name: string;
@@ -9,14 +11,18 @@ export interface TaskFormData {
   type: 'one_shot' | 'scheduled';
   schedule: OneShotSchedule | CronSchedule;
   trigger_logic: 'or' | 'and';
-  triggers: any[];
-  actions: any[];
+  triggers: { type: string; config: Record<string, any> }[];
+  actions: { type: string; name: string; config: Record<string, any>; output_var?: string; continue_on_error?: boolean }[];
+  timeout_sec: number;
+  max_retries: number;
+  retry_delay_sec: number;
 }
 
 const emptyForm: TaskFormData = {
   name: '', description: '', tags: [], group_name: '',
   type: 'one_shot', schedule: { mode: 'immediate' },
   trigger_logic: 'or', triggers: [], actions: [],
+  timeout_sec: 300, max_retries: 0, retry_delay_sec: 60,
 };
 
 interface TaskFormModalProps {
@@ -38,18 +44,17 @@ const s = {
   title: { fontSize: 18, fontWeight: 600, color: '#333' },
   closeBtn: { background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#999', padding: '4px 8px', borderRadius: 6 },
   body: { flex: 1, overflow: 'auto', padding: '20px 24px' },
-  footer: { padding: '16px 24px', borderTop: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between' },
   label: { fontSize: 14, fontWeight: 500, color: '#555', marginBottom: 6, display: 'block' as const },
   input: { width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid #d9d9d9', fontSize: 14, outline: 'none', boxSizing: 'border-box' as const },
   textarea: { width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid #d9d9d9', fontSize: 14, outline: 'none', resize: 'vertical' as const, minHeight: 80, boxSizing: 'border-box' as const, fontFamily: 'inherit' },
   formGroup: { marginBottom: 16 },
   btn: { padding: '10px 24px', borderRadius: 8, border: 'none', fontSize: 14, fontWeight: 600, cursor: 'pointer' },
-  btnPrimary: { background: '#1677ff', color: '#fff' },
   btnGhost: { background: 'transparent', color: '#666', border: '1px solid #d9d9d9' },
   card: { padding: 16, borderRadius: 10, border: '1px solid #f0f0f0', marginBottom: 12, background: '#fafafa' },
   radio: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 },
   addBtn: { padding: '8px 16px', borderRadius: 8, border: '1px dashed #1677ff', background: 'transparent', color: '#1677ff', fontSize: 13, cursor: 'pointer' },
   deleteBtn: { padding: '4px 10px', borderRadius: 6, border: 'none', background: '#fff1f0', color: '#ff4d4f', fontSize: 12, cursor: 'pointer' },
+  select: { width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid #d9d9d9', fontSize: 14, outline: 'none', boxSizing: 'border-box' as const, cursor: 'pointer', background: '#fff' },
 };
 
 export const TaskFormModal: React.FC<TaskFormModalProps> = ({ visible, editingTask, onClose, onSave }) => {
@@ -57,6 +62,25 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ visible, editingTa
   const [form, setForm] = useState<TaskFormData>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [newTag, setNewTag] = useState('');
+  const [error, setError] = useState('');
+  const [triggerPlugins, setTriggerPlugins] = useState<PluginInfo[]>([]);
+  const [actionPlugins, setActionPlugins] = useState<PluginInfo[]>([]);
+
+  useEffect(() => {
+    if (!visible) return;
+    (async () => {
+      try {
+        const [triggers, actions] = await Promise.all([
+          (window as any).taskManager.plugins.listTriggers(),
+          (window as any).taskManager.plugins.listActions(),
+        ]);
+        setTriggerPlugins(triggers || []);
+        setActionPlugins(actions || []);
+      } catch (err) {
+        console.error('加载插件列表失败', err);
+      }
+    })();
+  }, [visible]);
 
   useEffect(() => {
     if (editingTask) {
@@ -65,9 +89,11 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ visible, editingTa
         tags: editingTask.tags, group_name: editingTask.group_name,
         type: editingTask.type, schedule: editingTask.schedule,
         trigger_logic: editingTask.trigger_logic, triggers: [], actions: [],
+        timeout_sec: 300, max_retries: 0, retry_delay_sec: 60,
       });
     } else { setForm(emptyForm); }
     setStep(1);
+    setError('');
   }, [editingTask, visible]);
 
   const update = (p: Partial<TaskFormData>) => setForm(prev => ({ ...prev, ...p }));
@@ -76,10 +102,14 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ visible, editingTa
     if (t && !form.tags.includes(t)) { update({ tags: [...form.tags, t] }); setNewTag(''); }
   };
 
+  const getPluginById = (id: string, list: PluginInfo[]) => list.find(p => p.manifest.id === id);
+
   const handleSave = async () => {
     if (!form.name.trim()) return;
     setSaving(true);
-    try { await onSave(form); onClose(); } catch (err) { console.error(err); }
+    setError('');
+    try { await onSave(form); onClose(); }
+    catch (err: any) { setError(err.message || '保存失败'); }
     finally { setSaving(false); }
   };
 
@@ -108,6 +138,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ visible, editingTa
           <StepDot n={3} active={step === 3} done={step > 3} />
         </div>
         <div style={s.body}>
+          {/* Step 1: 基本信息 */}
           {step === 1 && (
             <div>
               <div style={s.formGroup}>
@@ -139,6 +170,8 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ visible, editingTa
               </div>
             </div>
           )}
+
+          {/* Step 2: 调度与触发 */}
           {step === 2 && (
             <div>
               <div style={{ display: 'flex', gap: 16, marginBottom: 20 }}>
@@ -178,80 +211,173 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ visible, editingTa
                   </div>
                 </div>
               )}
+
+              {/* 触发器配置 */}
               <div style={{ marginTop: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
                   <span style={{ fontWeight: 600, color: '#333' }}>触发器</span>
                   <label style={s.radio}><input type="radio" checked={form.trigger_logic === 'or'} onChange={() => update({ trigger_logic: 'or' })} /> OR（任一触发）</label>
                   <label style={s.radio}><input type="radio" checked={form.trigger_logic === 'and'} onChange={() => update({ trigger_logic: 'and' })} /> AND（全部触发）</label>
                 </div>
-                {form.triggers.map((tr, i) => (
-                  <div key={i} style={s.card}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <span style={{ fontWeight: 600, fontSize: 14 }}>① {tr.type}</span>
-                      <button style={s.deleteBtn} onClick={() => update({ triggers: form.triggers.filter((_: any, j: number) => j !== i) })}>删除</button>
+                {form.triggers.map((tr, i) => {
+                  const plugin = getPluginById(tr.type, triggerPlugins);
+                  return (
+                    <div key={i} style={s.card}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <span style={{ fontWeight: 600, fontSize: 14 }}>{plugin?.manifest.icon || '⚡'} {plugin?.manifest.name || tr.type}</span>
+                        <button style={s.deleteBtn} onClick={() => update({ triggers: form.triggers.filter((_, j) => j !== i) })}>删除</button>
+                      </div>
+                      {plugin ? (
+                        <TriggerConfig
+                          plugin={plugin}
+                          config={tr.config}
+                          onChange={(config) => {
+                            const triggers = [...form.triggers];
+                            triggers[i] = { ...triggers[i], config };
+                            update({ triggers });
+                          }}
+                        />
+                      ) : (
+                        <div style={{ fontSize: 13, color: '#888' }}>配置: {JSON.stringify(tr.config)}</div>
+                      )}
                     </div>
-                    <div style={{ fontSize: 13, color: '#888' }}>配置: {JSON.stringify(tr.config)}</div>
-                  </div>
-                ))}
-                <button style={s.addBtn} onClick={() => update({ triggers: [...form.triggers, { type: 'manual', config: {} }] })}>+ 添加触发器</button>
+                  );
+                })}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <select
+                    style={{ ...s.select, flex: 1 }}
+                    value=""
+                    onChange={e => {
+                      if (e.target.value) {
+                        update({ triggers: [...form.triggers, { type: e.target.value, config: {} }] });
+                        e.target.value = '';
+                      }
+                    }}
+                  >
+                    <option value="">+ 添加触发器...</option>
+                    {triggerPlugins.map(p => (
+                      <option key={p.manifest.id} value={p.manifest.id}>
+                        {p.manifest.icon || '⚡'} {p.manifest.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
           )}
+
+          {/* Step 3: 动作与输出 */}
           {step === 3 && (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <span style={{ fontWeight: 600, color: '#333' }}>动作序列</span>
               </div>
-              {form.actions.map((ac, i) => (
-                <div key={i} style={s.card}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <span style={{ fontWeight: 600, fontSize: 14 }}>步骤 {i + 1}: {ac.type}</span>
-                    <button style={s.deleteBtn} onClick={() => update({ actions: form.actions.filter((_: any, j: number) => j !== i) })}>删除</button>
+              {form.actions.map((ac, i) => {
+                const plugin = getPluginById(ac.type, actionPlugins);
+                return (
+                  <div key={i} style={s.card}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <span style={{ fontWeight: 600, fontSize: 14 }}>步骤 {i + 1}: {plugin?.manifest.icon || '⚙️'} {plugin?.manifest.name || ac.type}</span>
+                      <button style={s.deleteBtn} onClick={() => update({ actions: form.actions.filter((_, j) => j !== i) })}>删除</button>
+                    </div>
+                    {plugin ? (
+                      <ActionConfig
+                        plugin={plugin}
+                        config={ac.config}
+                        onChange={(config) => {
+                          const actions = [...form.actions];
+                          actions[i] = { ...actions[i], config };
+                          update({ actions });
+                        }}
+                        outputVar={ac.output_var}
+                        onOutputVarChange={(output_var) => {
+                          const actions = [...form.actions];
+                          actions[i] = { ...actions[i], output_var };
+                          update({ actions });
+                        }}
+                        continueOnError={ac.continue_on_error}
+                        onContinueOnErrorChange={(continue_on_error) => {
+                          const actions = [...form.actions];
+                          actions[i] = { ...actions[i], continue_on_error };
+                          update({ actions });
+                        }}
+                      />
+                    ) : (
+                      <div style={{ fontSize: 13, color: '#888' }}>配置: {JSON.stringify(ac.config)}</div>
+                    )}
                   </div>
-                  <div style={{ fontSize: 13, color: '#888' }}>配置: {JSON.stringify(ac.config)}</div>
-                </div>
-              ))}
-              <button style={s.addBtn} onClick={() => update({ actions: [...form.actions, { type: 'welink_message', name: '', config: { target_type: 'user', target_id: '', content_template: '' }, continue_on_error: false }] })}>+ 添加动作</button>
+                );
+              })}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <select
+                  style={{ ...s.select, flex: 1 }}
+                  value=""
+                  onChange={e => {
+                    if (e.target.value) {
+                      update({ actions: [...form.actions, { type: e.target.value, name: '', config: {}, output_var: '', continue_on_error: false }] });
+                      e.target.value = '';
+                    }
+                  }}
+                >
+                  <option value="">+ 添加动作...</option>
+                  {actionPlugins.map(p => (
+                    <option key={p.manifest.id} value={p.manifest.id}>
+                      {p.manifest.icon || '⚙️'} {p.manifest.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 高级设置 */}
               <div style={{ ...s.card, marginTop: 20, background: '#f5f5f5' }}>
                 <div style={{ fontWeight: 600, marginBottom: 12, fontSize: 14 }}>高级设置</div>
                 <div style={s.formGroup}>
                   <label style={s.label}>超时时间（秒）</label>
-                  <input type="number" style={s.input} placeholder="300" />
+                  <input type="number" style={s.input} value={form.timeout_sec} onChange={e => update({ timeout_sec: parseInt(e.target.value) || 300 })} min={0} />
                 </div>
                 <div style={s.formGroup}>
                   <label style={s.label}>重试次数</label>
-                  <input type="number" style={s.input} placeholder="0" />
+                  <input type="number" style={s.input} value={form.max_retries} onChange={e => update({ max_retries: parseInt(e.target.value) || 0 })} min={0} />
                 </div>
                 <div style={s.formGroup}>
                   <label style={s.label}>重试间隔（秒）</label>
-                  <input type="number" style={s.input} placeholder="60" />
+                  <input type="number" style={s.input} value={form.retry_delay_sec} onChange={e => update({ retry_delay_sec: parseInt(e.target.value) || 60 })} min={0} />
                 </div>
               </div>
             </div>
           )}
         </div>
-                <div style={{
+
+        {/* Footer */}
+        <div style={{
           padding: '12px 20px', borderTop: '1px solid #e0e0e0',
-          display: 'flex', justifyContent: 'space-between',
+          display: 'flex', justifyContent: 'space-between', flexDirection: 'column' as const,
         }}>
-          <div>
-            {step > 1 && (
+          {error && (
+            <div style={{ padding: '6px 12px', marginBottom: 8, borderRadius: 4, background: '#fff2f0', border: '1px solid #ffccc7', color: '#cf222e', fontSize: 12 }}>
+              {error}
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <div>
+              {step > 1 && (
+                <button style={{ padding: '6px 16px', borderRadius: 4, border: '1px solid #d0d0d0', background: '#fff', color: '#555', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                  onClick={() => setStep(step - 1)}>上一步</button>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
               <button style={{ padding: '6px 16px', borderRadius: 4, border: '1px solid #d0d0d0', background: '#fff', color: '#555', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-                onClick={() => setStep(step - 1)}>上一步</button>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button style={{ padding: '6px 16px', borderRadius: 4, border: '1px solid #d0d0d0', background: '#fff', color: '#555', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-              onClick={onClose}>取消</button>
-            {step < 3 ? (
-              <button style={{ padding: '6px 16px', borderRadius: 4, border: 'none', background: '#0078d4', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-                onClick={() => setStep(step + 1)}>下一步</button>
-            ) : (
-              <button style={{ padding: '6px 16px', borderRadius: 4, border: 'none', background: '#0078d4', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-                onClick={handleSave} disabled={saving || !form.name.trim()}>
-                {saving ? '保存中...' : editingTask ? '保存修改' : '创建任务'}
-              </button>
-            )}
+                onClick={onClose}>取消</button>
+              {step < 3 ? (
+                <button style={{ padding: '6px 16px', borderRadius: 4, border: 'none', background: '#0078d4', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                  onClick={() => setStep(step + 1)}>下一步</button>
+              ) : (
+                <button style={{ padding: '6px 16px', borderRadius: 4, border: 'none', background: '#0078d4', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                  onClick={handleSave} disabled={saving || !form.name.trim()}>
+                  {saving ? '保存中...' : editingTask ? '保存修改' : '创建任务'}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

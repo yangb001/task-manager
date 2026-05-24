@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { getDatabase, saveDatabase } from '../connection';
+import { getDatabase, markDirty } from '../connection';
 import type { Trigger } from '../../../shared/types';
 
 export class TriggerRepository {
@@ -20,20 +20,20 @@ export class TriggerRepository {
       'INSERT INTO triggers (id, task_id, type, config, enabled, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [id, data.task_id, data.type, JSON.stringify(data.config), data.enabled !== false ? 1 : 0, data.sort_order || 0, now]
     );
-    saveDatabase();
+    markDirty();
     return this.get(id)!;
   }
 
   delete(id: string): void {
     const db = getDatabase();
     db.run('DELETE FROM triggers WHERE id = ?', [id]);
-    saveDatabase();
+    markDirty();
   }
 
   deleteByTask(taskId: string): void {
     const db = getDatabase();
     db.run('DELETE FROM triggers WHERE task_id = ?', [taskId]);
-    saveDatabase();
+    markDirty();
   }
 
   private queryAll(sql: string, params: any[] = []): Trigger[] {

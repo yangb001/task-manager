@@ -200,7 +200,15 @@ export interface PluginManifest {
   output_schema?: Record<string, any>;
   icon?: string;
   category?: string;
+  permissions?: PluginPermission[];
 }
+
+export type PluginPermission =
+  | 'network'      // 允许网络请求
+  | 'filesystem'   // 允许文件系统访问
+  | 'process'      // 允许执行子进程
+  | 'vault'        // 允许访问加密存储
+  | 'env';         // 允许读取环境变量
 
 export interface PluginInfo {
   manifest: PluginManifest;
@@ -282,6 +290,11 @@ export const IPC_CHANNELS = {
   PLUGIN_LIST_ACTIONS: 'plugin:listActions',
   PLUGIN_GET_SCHEMA: 'plugin:getSchema',
   PLUGIN_SCAN_USER: 'plugin:scanUser',
+  PLUGIN_LIST_ALL: 'plugin:listAll',
+  PLUGIN_UNINSTALL: 'plugin:uninstall',
+
+  SETTINGS_GET: 'settings:get',
+  SETTINGS_SET: 'settings:set',
 
   // 主进程推送事件
   EVENT_TASK_STATUS: 'event:taskStatus',

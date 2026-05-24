@@ -28,10 +28,22 @@ export class PluginScanner {
           fs.readFileSync(manifestPath, 'utf-8')
         );
 
-        // 校验必要字段
         if (!manifest.id || !manifest.name || !manifest.type || !manifest.entry) {
           console.warn(`[PluginScanner] 跳过无效插件: ${entry.name}, 缺少必要字段`);
           continue;
+        }
+
+        // 用户插件做静态安全检查
+        if (source === 'user') {
+          const entryPath = path.join(dirPath, entry.name, manifest.entry);
+          if (fs.existsSync(entryPath)) {
+            const code = fs.readFileSync(entryPath, 'utf-8');
+            const violations = this.checkCodeSafety(code);
+            if (violations.length > 0) {
+              console.warn(`[PluginScanner] 插件 ${entry.name} 安全检查失败:`, violations);
+              continue;
+            }
+          }
         }
 
         results.push({
@@ -73,6 +85,28 @@ export class PluginScanner {
 
   getUserActionDir(): string {
     return path.join(this.getUserPluginDir(), 'actions');
+  }
+
+  /**
+   * 静态安全检查：检测用户插件代码中的危险模式
+   */
+  private checkCodeSafety(code: string): string[] {
+    const violations: string[] = [];
+    const dangerousPatterns = [
+      { pattern: /require\s*\(\s*['"]child_process['"]\s*\)/, msg: '禁止使用 child_process' },
+      { pattern: /require\s*\(\s*['"]cluster['"]\s*\)/, msg: '禁止使用 cluster' },
+      { pattern: /require\s*\(\s*['"]worker_threads['"]\s*\)/, msg: '禁止使用 worker_threads' },
+      { pattern: /process\s*\.\s*(exit|kill|abort)/, msg: '禁止调用 process.exit/kill/abort' },
+      { pattern: /eval\s*\(/, msg: '禁止使用 eval' },
+      { pattern: /new\s+Function\s*\(/, msg: '禁止使用 new Function' },
+      { pattern: /require\s*\(\s*['"]vm['"]\s*\)/, msg: '禁止使用 vm 模块' },
+    ];
+    for (const { pattern, msg } of dangerousPatterns) {
+      if (pattern.test(code)) {
+        violations.push(msg);
+      }
+    }
+    return violations;
   }
 
   /**

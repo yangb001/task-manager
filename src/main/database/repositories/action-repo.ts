@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { getDatabase, saveDatabase } from '../connection';
+import { getDatabase, markDirty } from '../connection';
 import type { Action } from '../../../shared/types';
 
 export class ActionRepository {
@@ -21,20 +21,20 @@ export class ActionRepository {
       [id, data.task_id, data.type, data.name || '', JSON.stringify(data.config),
        data.enabled !== false ? 1 : 0, data.continue_on_error ? 1 : 0, data.sort_order || 0, now]
     );
-    saveDatabase();
+    markDirty();
     return this.get(id)!;
   }
 
   delete(id: string): void {
     const db = getDatabase();
     db.run('DELETE FROM actions WHERE id = ?', [id]);
-    saveDatabase();
+    markDirty();
   }
 
   deleteByTask(taskId: string): void {
     const db = getDatabase();
     db.run('DELETE FROM actions WHERE task_id = ?', [taskId]);
-    saveDatabase();
+    markDirty();
   }
 
   private queryAll(sql: string, params: any[] = []): Action[] {

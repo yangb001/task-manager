@@ -117,6 +117,11 @@ task-manager/
 ```bash
 cd task-manager
 npm install
+
+# yixia
+$env:ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"
+$env:ELECTRON_BUILDER_BINARIES_MIRROR="https://npmmirror.com/mirrors/electron-builder-binaries/"
+pnpm install --no-frozen-lockfile
 ```
 
 ### 2. 开发模式运行
@@ -132,7 +137,7 @@ npm run dev
 ### 3. 构建生产版本
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 编译主进程和渲染进程到 `dist/` 目录。
@@ -140,7 +145,7 @@ npm run build
 ### 4. 打包安装包
 
 ```bash
-npm run pack
+pnpm run pack
 ```
 
 输出 NSIS 安装包到 `release/` 目录，产物：`TaskManager-{version}-setup.exe`

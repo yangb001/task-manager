@@ -93,6 +93,10 @@ export class TaskManager {
     const task = taskRepo.get(id);
     if (!task) return;
 
+    if (executor.isRunning(id)) {
+      throw new Error(`任务 ${task.name} 正在执行中`);
+    }
+
     await executor.executeTask(id, undefined, { triggered_by: 'manual', triggered_at: new Date().toISOString() });
   }
 

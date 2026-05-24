@@ -1,4 +1,4 @@
-export { initializeDatabase, closeDatabase, getDatabase, saveDatabase } from './connection';
+export { initializeDatabase, closeDatabase, getDatabase, markDirty, flushToDisk } from './connection';
 export { taskRepo } from './repositories/task-repo';
 export { triggerRepo } from './repositories/trigger-repo';
 export { actionRepo } from './repositories/action-repo';
