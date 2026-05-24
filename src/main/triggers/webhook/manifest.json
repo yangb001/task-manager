@@ -1,0 +1,52 @@
+{
+  "id": "webhook",
+  "name": "Webhook",
+  "version": "1.0.0",
+  "type": "trigger",
+  "description": "通过 HTTP 请求触发任务，支持自定义端口和路径",
+  "author": "system",
+  "entry": "index.js",
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "port": {
+        "type": "number",
+        "title": "监听端口",
+        "description": "0=随机分配",
+        "default": 0,
+        "minimum": 0,
+        "maximum": 65535
+      },
+      "path": {
+        "type": "string",
+        "title": "URL 路径",
+        "description": "如 /webhook/my-task",
+        "default": "/webhook"
+      },
+      "method": {
+        "type": "string",
+        "title": "HTTP 方法",
+        "enum": ["POST", "GET", "PUT"],
+        "default": "POST"
+      },
+      "secret": {
+        "type": "string",
+        "title": "签名密钥",
+        "description": "可选，验证请求签名"
+      }
+    },
+    "required": ["path"]
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "method": { "type": "string" },
+      "path": { "type": "string" },
+      "headers": { "type": "object" },
+      "body": { "type": "object" },
+      "query": { "type": "object" }
+    }
+  },
+  "icon": "🌐",
+  "category": "network"
+}

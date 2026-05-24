@@ -1,0 +1,61 @@
+{
+  "id": "http_request",
+  "name": "HTTP 远程调用",
+  "version": "1.0.0",
+  "type": "action",
+  "description": "发送 HTTP/HTTPS 请求到远程 API",
+  "author": "system",
+  "entry": "index.js",
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "title": "请求 URL",
+        "description": "支持模板变量"
+      },
+      "method": {
+        "type": "string",
+        "title": "请求方法",
+        "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"],
+        "default": "GET"
+      },
+      "headers": {
+        "type": "object",
+        "title": "请求头",
+        "description": "支持模板变量和 {{vault:key}} 引用"
+      },
+      "body_template": {
+        "type": "string",
+        "title": "请求体模板",
+        "format": "textarea",
+        "description": "JSON 格式，支持模板变量"
+      },
+      "timeout_sec": {
+        "type": "number",
+        "title": "超时时间(秒)",
+        "default": 30,
+        "minimum": 1
+      },
+      "retry": {
+        "type": "object",
+        "title": "重试策略",
+        "properties": {
+          "max_retries": { "type": "number", "default": 0 },
+          "delay_sec": { "type": "number", "default": 5 }
+        }
+      }
+    },
+    "required": ["url"]
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "status_code": { "type": "number" },
+      "headers": { "type": "object" },
+      "body": { "type": "object" }
+    }
+  },
+  "icon": "🌐",
+  "category": "network"
+}

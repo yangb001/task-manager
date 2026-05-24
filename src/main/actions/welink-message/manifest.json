@@ -1,0 +1,47 @@
+{
+  "id": "welink_message",
+  "name": "发送 WeLink 消息",
+  "version": "1.0.0",
+  "type": "action",
+  "description": "发送文本或 Markdown 消息到 WeLink 用户或群聊",
+  "author": "system",
+  "entry": "index.js",
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "target_type": {
+        "type": "string",
+        "title": "目标类型",
+        "enum": ["user", "group"],
+        "default": "user"
+      },
+      "target_id": {
+        "type": "string",
+        "title": "目标 ID",
+        "description": "用户 ID 或群聊 ID，支持模板变量"
+      },
+      "message_type": {
+        "type": "string",
+        "title": "消息类型",
+        "enum": ["text", "markdown"],
+        "default": "text"
+      },
+      "content_template": {
+        "type": "string",
+        "title": "消息内容模板",
+        "description": "支持模板变量，如 {{steps.analysis}}",
+        "format": "textarea"
+      }
+    },
+    "required": ["target_id", "content_template"]
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "message_id": { "type": "string" },
+      "status": { "type": "string" }
+    }
+  },
+  "icon": "💬",
+  "category": "communication"
+}
